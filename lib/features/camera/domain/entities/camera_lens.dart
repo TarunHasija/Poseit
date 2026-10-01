@@ -1,0 +1,1 @@
+enum CameraLens { rear, front }

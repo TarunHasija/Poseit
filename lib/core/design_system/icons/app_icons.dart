@@ -1,0 +1,41 @@
+import 'package:flutter/widgets.dart';
+import 'package:heroicons_flutter/heroicons_flutter.dart';
+
+abstract final class AppIcons {
+  static const IconData add = HeroiconsOutline.plus;
+  static const IconData addPhoto = HeroiconsOutline.squaresPlus;
+  static const IconData appearance = HeroiconsOutline.faceSmile;
+  static const IconData back = HeroiconsOutline.arrowLeft;
+  static const IconData camera = HeroiconsOutline.camera;
+  static const IconData cameraSwitch = HeroiconsOutline.arrowsRightLeft;
+  static const IconData categoryForYou = HeroiconsOutline.sparkles;
+  static const IconData categoryFavorites = HeroiconsOutline.heart;
+  static const IconData categoryMyPoses = HeroiconsOutline.rectangleStack;
+  static const IconData categoryOutdoor = HeroiconsOutline.sun;
+  static const IconData categorySitting = HeroiconsOutline.user;
+  static const IconData categoryTravel = HeroiconsOutline.mapPin;
+  static const IconData chevronRight = HeroiconsOutline.chevronRight;
+  static const IconData collapse = HeroiconsOutline.chevronDown;
+  static const IconData close = HeroiconsOutline.xMark;
+  static const IconData externalLink = HeroiconsOutline.arrowTopRightOnSquare;
+  static const IconData favorite = HeroiconsOutline.heart;
+  static const IconData favoriteSelected = HeroiconsSolid.heart;
+  static const IconData flashAuto = HeroiconsOutline.sparkles;
+  static const IconData flashOff = HeroiconsOutline.boltSlash;
+  static const IconData flashOn = HeroiconsOutline.bolt;
+  static const IconData gallery = HeroiconsOutline.photo;
+  static const IconData grid = HeroiconsOutline.squares2x2;
+  static const IconData imageUnavailable = HeroiconsOutline.photo;
+  static const IconData information = HeroiconsOutline.informationCircle;
+  static const IconData move = HeroiconsOutline.arrowsPointingOut;
+  static const IconData opacity = HeroiconsOutline.eye;
+  static const IconData overlay = HeroiconsOutline.square2Stack;
+  static const IconData privacy = HeroiconsOutline.lockClosed;
+  static const IconData search = HeroiconsOutline.magnifyingGlass;
+  static const IconData settings = HeroiconsOutline.adjustmentsHorizontal;
+  static const IconData themeDark = HeroiconsOutline.moon;
+  static const IconData themeLight = HeroiconsOutline.sun;
+  static const IconData themeSystem = HeroiconsOutline.computerDesktop;
+  static const IconData trash = HeroiconsOutline.trash;
+  static const IconData unavailable = HeroiconsOutline.videoCameraSlash;
+}
