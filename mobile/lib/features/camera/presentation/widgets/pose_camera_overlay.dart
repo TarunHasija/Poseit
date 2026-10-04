@@ -30,7 +30,9 @@ class PoseCameraOverlay extends StatelessWidget {
                   scale: scale,
                   child: Opacity(
                     opacity: opacity,
-                    child: PoseImage(pose: pose!, fit: BoxFit.contain),
+                    child: SizedBox.expand(
+                      child: PoseImage(pose: pose!, fit: BoxFit.cover),
+                    ),
                   ),
                 ),
               ),

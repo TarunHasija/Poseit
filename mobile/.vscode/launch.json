@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Posio",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_zy8gDqfXxPKMw97_OQBKWw_2L6CkAdR"
+      ]
+    }
+  ]
+}
