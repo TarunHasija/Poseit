@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:gal/gal.dart';
 import 'package:posio/features/camera/data/services/captured_image_processor.dart';
@@ -98,7 +100,19 @@ final class DeviceCameraDataSource implements CameraPlatformDataSource {
     }
 
     final temporaryFile = await controller.takePicture();
-    final persistentPath = await _photoStorage.persist(temporaryFile.path);
+    final capturedAt = DateTime.now();
+
+    // Return as soon as the camera has produced the image. File persistence,
+    // cropping, and saving to the device gallery happen after the shutter.
+    unawaited(_finishSavingCapture(temporaryFile.path, ratio));
+    return CapturedPhoto(path: temporaryFile.path, capturedAt: capturedAt);
+  }
+
+  Future<void> _finishSavingCapture(
+    String temporaryPath,
+    CameraFrameRatio ratio,
+  ) async {
+    final persistentPath = await _photoStorage.persist(temporaryPath);
     final targetRatio = ratio.aspectRatio;
     if (targetRatio != null) {
       await _imageProcessor.cropToRatio(persistentPath, targetRatio);
@@ -107,7 +121,6 @@ final class DeviceCameraDataSource implements CameraPlatformDataSource {
       await Gal.requestAccess();
     }
     await Gal.putImage(persistentPath);
-    return CapturedPhoto(path: persistentPath, capturedAt: DateTime.now());
   }
 
   @override

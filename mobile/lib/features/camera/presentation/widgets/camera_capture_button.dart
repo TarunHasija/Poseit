@@ -46,15 +46,9 @@ class CameraCaptureButton extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.94),
                     ),
-                    child: isCapturing
-                        ? const Padding(
-                            padding: EdgeInsets.all(18),
-                            child: CircularProgressIndicator(
-                              color: Colors.black,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : null,
+                    // Keep the shutter visually consistent while the photo
+                    // is being finalized in the background.
+                    child: null,
                   ),
                 ),
               ),
