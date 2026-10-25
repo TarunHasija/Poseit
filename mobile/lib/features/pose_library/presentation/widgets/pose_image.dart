@@ -34,6 +34,15 @@ class PoseImage extends StatelessWidget {
           child: Center(child: Icon(AppIcons.imageUnavailable)),
         ),
       ),
+      PoseImageSource.backendFile => Image.file(
+        File(pose.assetPath),
+        fit: fit,
+        alignment: alignment,
+        errorBuilder: (context, error, stackTrace) => const ColoredBox(
+          color: Color(0xFFE7E9EE),
+          child: Center(child: Icon(AppIcons.imageUnavailable)),
+        ),
+      ),
     };
   }
 }

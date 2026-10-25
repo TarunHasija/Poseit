@@ -21,6 +21,10 @@ class PoseImage(Base):
     original_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     width: Mapped[int] = mapped_column(Integer, nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
+    people_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    category: Mapped[str] = mapped_column(String(120), nullable=False, default="Uncategorized")
+    male: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    female: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

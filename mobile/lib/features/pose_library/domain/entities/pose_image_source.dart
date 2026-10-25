@@ -1,1 +1,1 @@
-enum PoseImageSource { bundledAsset, localFile }
+enum PoseImageSource { bundledAsset, localFile, backendFile }

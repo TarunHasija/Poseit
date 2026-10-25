@@ -84,6 +84,44 @@ Success status: `201 Created`. The response is pose metadata:
 }
 ```
 
+### `POST /poses/bulk`
+
+Uploads multiple images in one `multipart/form-data` request. Repeat the
+`files` field once for each image. The metadata fields are applied to every
+uploaded image; each returned `id` is a unique image ID.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `files` | file, repeated | JPEG, PNG, WEBP, or GIF image; up to 20 images |
+| `people_count` | integer | Shared people count, zero or greater |
+| `category` | string | Shared category, 1–120 characters |
+| `male` | integer | Shared male count, zero or greater |
+| `female` | integer | Shared female count, zero or greater |
+| `created_at` | ISO 8601 datetime | Shared capture/creation time; timezone is recommended |
+
+Each image is limited to 15 MiB and the combined original upload size is
+limited to 100 MiB. The server validates and optimizes each image, stores all
+objects in the private bucket, and returns a list of pose metadata with status
+`201 Created`. If an image or database write fails, the request is rolled back
+and uploaded storage objects are removed where possible.
+
+Example:
+
+```bash
+curl -X POST "$API_BASE_URL/poses/bulk" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "files=@./front.jpg" \
+  -F "files=@./side.png" \
+  -F "people_count=3" \
+  -F "category=Family" \
+  -F "male=1" \
+  -F "female=2" \
+  -F "created_at=2026-10-25T10:30:00Z"
+```
+
+The response is an array. Each item includes its own unique `id` plus the
+shared metadata, image dimensions, and storage details.
+
 ### `GET /poses`
 
 Returns the full pose catalog, including each image as base64. Each item contains all the metadata above plus `image_base64`:

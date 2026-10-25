@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -19,6 +20,8 @@ ALLOWED_FORMATS = {
     "GIF": ("image/gif", "gif"),
 }
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
+MAX_BULK_IMAGE_COUNT = 20
+MAX_BULK_TOTAL_BYTES = 100 * 1024 * 1024
 
 
 def _optimize_image(data: bytes, declared_mime: str) -> tuple[bytes, str, int, int]:
@@ -107,6 +110,86 @@ async def upload_pose(db: AsyncSession, file: UploadFile) -> tuple[PoseImage, by
         await run_in_threadpool(_remove_object, settings.SUPABASE_POSES_BUCKET, object_path)
         raise
     return pose, optimized
+
+
+async def upload_poses_bulk(
+    db: AsyncSession,
+    files: list[UploadFile],
+    *,
+    people_count: int,
+    category: str,
+    male: int,
+    female: int,
+    created_at: datetime,
+) -> list[PoseImage]:
+    """Store images with one shared set of metadata and a unique UUID per image."""
+    from starlette.concurrency import run_in_threadpool
+
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one image is required")
+    if len(files) > MAX_BULK_IMAGE_COUNT:
+        raise HTTPException(status_code=413, detail=f"Bulk upload is limited to {MAX_BULK_IMAGE_COUNT} images")
+
+    normalized_created_at = (
+        created_at.replace(tzinfo=timezone.utc)
+        if created_at.tzinfo is None
+        else created_at
+    )
+    uploaded_objects: list[tuple[str, str]] = []
+    total_bytes = 0
+    poses: list[PoseImage] = []
+    try:
+        for file in files:
+            declared_mime = (file.content_type or "").split(";", 1)[0].strip().lower()
+            if not declared_mime.startswith("image/"):
+                raise HTTPException(status_code=415, detail="Only image MIME types are allowed")
+            raw = await file.read(MAX_IMAGE_BYTES + 1)
+            if not raw:
+                raise HTTPException(status_code=400, detail="Image file is empty")
+            if len(raw) > MAX_IMAGE_BYTES:
+                raise HTTPException(status_code=413, detail="An image exceeds the 15 MiB upload limit")
+            total_bytes += len(raw)
+            if total_bytes > MAX_BULK_TOTAL_BYTES:
+                raise HTTPException(status_code=413, detail="Bulk upload exceeds the 100 MiB total limit")
+
+            optimized, mime_type, width, height = _optimize_image(raw, declared_mime)
+            pose_id = uuid4()
+            extension = ALLOWED_FORMATS[Image.open(BytesIO(optimized)).format][1]
+            object_path = f"{pose_id}.{extension}"
+            bucket = settings.SUPABASE_POSES_BUCKET
+            uploaded_objects.append((bucket, object_path))
+            await run_in_threadpool(_upload_object, object_path, optimized, mime_type)
+            poses.append(
+                await create_pose(
+                    db,
+                    id=pose_id,
+                    bucket_name=bucket,
+                    object_path=object_path,
+                    original_filename=Path(file.filename or "pose").name[:255],
+                    mime_type=mime_type,
+                    size_bytes=len(optimized),
+                    original_size_bytes=len(raw),
+                    width=width,
+                    height=height,
+                    people_count=people_count,
+                    category=category,
+                    male=male,
+                    female=female,
+                    created_at=normalized_created_at,
+                )
+            )
+
+        await db.commit()
+        return poses
+    except Exception:
+        await db.rollback()
+        for bucket, object_path in reversed(uploaded_objects):
+            try:
+                await run_in_threadpool(_remove_object, bucket, object_path)
+            except Exception:
+                # Keep the original error if cleanup itself fails.
+                pass
+        raise
 
 
 async def fetch_pose(db: AsyncSession, pose_id: UUID) -> tuple[PoseImage, bytes] | None:

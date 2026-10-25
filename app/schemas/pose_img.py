@@ -16,6 +16,10 @@ class PoseMetadata(BaseModel):
     original_size_bytes: int
     width: int
     height: int
+    people_count: int = 1
+    category: str = "Uncategorized"
+    male: int = 0
+    female: int = 0
     created_at: datetime
 
 
