@@ -1,18 +1,18 @@
 # main.py
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from sqlalchemy import text
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine
 from app.api.routes.auth import router
 from app.api.routes.poses import router as poses_router
-from app.repositories.db.pose_repo import PoseImage  # noqa: F401 - register ORM model
 
 # ── 1. Lifespan: runs on startup & shutdown ──────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # STARTUP
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)   # creates tables if not exist
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
     print("✅ Database connected")
     
     yield                                                # app runs here

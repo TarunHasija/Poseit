@@ -4,9 +4,8 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
 )
-from sqlalchemy.orm import DeclarativeBase
-
 from app.core.config import settings
+from app.core.db_base import Base
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -19,10 +18,6 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False
 )
-
-class Base(DeclarativeBase):
-    pass
-
 
 # Dependency for FastAPI routes
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

@@ -270,3 +270,23 @@ For an authenticated upload, call `login` first, then pass a local image path to
 ## Inspecting the API
 
 With the backend running, Swagger UI is available at `/docs` on the API base URL. It can be used to inspect schemas and manually try calls. Log in first, copy `access_token`, click **Authorize**, enter `Bearer <access_token>`, then try the pose routes.
+
+## Database migrations (Alembic)
+
+Alembic is configured at the repository root. The API no longer creates tables on startup, so apply migrations before starting against a new database.
+
+After changing a SQLAlchemy model, generate a revision from the repository root:
+
+```shell
+alembic revision --autogenerate -m "describe the schema change"
+```
+
+Review the generated Python file in `migrations/versions/`; autogeneration is a draft and should be checked before applying. Apply pending revisions with:
+
+```shell
+alembic upgrade head
+```
+
+For an existing database that already has the original `pose_images` table from the older SQL migration, baseline it before using Alembic. If it has only the original columns, run `alembic stamp 0001_pose_schema` and then `alembic upgrade head`. If the bulk metadata columns were already added by `20261025_add_bulk_pose_metadata.sql`, run `alembic stamp head` instead. `stamp` records the current revision without changing tables, so confirm the actual schema matches first.
+
+The older `.sql` files in `migrations/` are retained as historical records. Use Alembic revisions for future changes instead of manually rerunning those files.
