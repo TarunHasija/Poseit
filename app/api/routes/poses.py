@@ -1,7 +1,8 @@
 import base64
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -9,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.schemas.pose_img import PoseMetadata, PoseWithImage
-from app.services.pose_service import fetch_all_poses, fetch_pose, upload_pose
+from app.services.pose_service import fetch_all_poses, fetch_pose, upload_pose, upload_poses_bulk
 
 router = APIRouter(prefix="/poses", tags=["Poses"])
 
@@ -34,6 +35,40 @@ async def create_pose_endpoint(
         raise HTTPException(status_code=502, detail="Pose upload failed") from exc
     finally:
         await file.close()
+
+
+@router.post("/bulk", response_model=list[PoseMetadata], status_code=status.HTTP_201_CREATED)
+async def create_poses_bulk_endpoint(
+    files: list[UploadFile] = File(...),
+    people_count: int = Form(..., ge=0),
+    category: str = Form(..., min_length=1, max_length=120),
+    male: int = Form(..., ge=0),
+    female: int = Form(..., ge=0),
+    created_at: datetime = Form(...),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    try:
+        normalized_category = category.strip()
+        if not normalized_category:
+            raise HTTPException(status_code=422, detail="Category cannot be blank")
+        return await upload_poses_bulk(
+            db,
+            files,
+            people_count=people_count,
+            category=normalized_category,
+            male=male,
+            female=female,
+            created_at=created_at,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=502, detail="Bulk pose upload failed") from exc
+    finally:
+        for file in files:
+            await file.close()
 
 
 @router.get("", response_model=list[PoseWithImage])

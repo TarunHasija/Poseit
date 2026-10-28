@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:posio/app/theme/app_spacing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:posio/core/network/backend_api.dart';
 import 'package:video_player/video_player.dart';
 
 class FigmaLoginPage extends StatefulWidget {
@@ -20,6 +21,9 @@ class _FigmaLoginPageState extends State<FigmaLoginPage> {
   late final StreamSubscription<AuthState> _authSubscription;
   bool _isSigningIn = false;
   String? _errorMessage;
+  String? _statusMessage;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   late final VideoPlayerController _videoController;
   Future<void>? _videoInitialization;
 
@@ -39,6 +43,8 @@ class _FigmaLoginPageState extends State<FigmaLoginPage> {
   @override
   void dispose() {
     _authSubscription.cancel();
+    _emailController.dispose();
+    _passwordController.dispose();
     _videoController.dispose();
     super.dispose();
   }
@@ -79,6 +85,39 @@ class _FigmaLoginPageState extends State<FigmaLoginPage> {
     }
   }
 
+  Future<void> _emailAuth({required bool signup}) async {
+    setState(() {
+      _isSigningIn = true;
+      _errorMessage = null;
+      _statusMessage = null;
+    });
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+      if (email.isEmpty || password.length < 8) {
+        throw const BackendApiException(
+          'Enter an email and a password of at least 8 characters.',
+        );
+      }
+      if (signup) {
+        await backendApi.signup(email, password);
+        if (mounted) {
+          setState(
+            () => _statusMessage = 'Account created. Sign in to continue.',
+          );
+        }
+      } else {
+        final response = await backendApi.login(email, password);
+        await _supabase.auth.setSession(response['refresh_token'] as String);
+        if (mounted) context.go('/');
+      }
+    } on Object catch (error) {
+      if (mounted) setState(() => _errorMessage = error.toString());
+    } finally {
+      if (mounted) setState(() => _isSigningIn = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -114,7 +153,7 @@ class _FigmaLoginPageState extends State<FigmaLoginPage> {
                     },
                   ),
                 ),
-                
+
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -164,6 +203,49 @@ class _FigmaLoginPageState extends State<FigmaLoginPage> {
                   bottom: AppSpacing.lg,
                   child: Column(
                     children: [
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [AutofillHints.email],
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        autofillHints: const [AutofillHints.password],
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: _isSigningIn
+                                  ? null
+                                  : () => _emailAuth(signup: true),
+                              child: const Text('Create account'),
+                            ),
+                          ),
+                          Expanded(
+                            child: TextButton(
+                              onPressed: _isSigningIn
+                                  ? null
+                                  : () => _emailAuth(signup: false),
+                              child: const Text('Sign in'),
+                            ),
+                          ),
+                        ],
+                      ),
                       SizedBox(
                         width: double.infinity,
                         height: 56,
@@ -202,6 +284,17 @@ class _FigmaLoginPageState extends State<FigmaLoginPage> {
                                 ),
                         ),
                       ),
+                      if (_statusMessage case final message?) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          message,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.googleSansFlex(
+                            color: Colors.green.shade800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                       if (_errorMessage case final message?) ...[
                         const SizedBox(height: AppSpacing.sm),
                         Text(
@@ -228,7 +321,6 @@ class _FigmaLoginPageState extends State<FigmaLoginPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 180),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(

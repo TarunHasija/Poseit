@@ -1,16 +1,29 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Integer, String, func, select
+from sqlalchemy import CheckConstraint, DateTime, Integer, String, func, select
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base
+from app.core.db_base import Base
 
 
 class PoseImage(Base):
     __tablename__ = "pose_images"
+    __table_args__ = (
+        CheckConstraint(
+            "mime_type IN ('image/jpeg', 'image/png', 'image/webp', 'image/gif')",
+            name="ck_pose_images_mime_type",
+        ),
+        CheckConstraint("size_bytes >= 0", name="ck_pose_images_size_bytes"),
+        CheckConstraint("original_size_bytes >= 0", name="ck_pose_images_original_size_bytes"),
+        CheckConstraint("width > 0", name="ck_pose_images_width"),
+        CheckConstraint("height > 0", name="ck_pose_images_height"),
+        CheckConstraint("people_count >= 0", name="ck_pose_images_people_count"),
+        CheckConstraint("male >= 0", name="ck_pose_images_male"),
+        CheckConstraint("female >= 0", name="ck_pose_images_female"),
+    )
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid4)
     bucket_name: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -21,6 +34,10 @@ class PoseImage(Base):
     original_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     width: Mapped[int] = mapped_column(Integer, nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
+    people_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    category: Mapped[str] = mapped_column(String(120), nullable=False, default="Uncategorized")
+    male: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    female: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

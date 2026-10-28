@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:posio/features/pose_library/data/data_sources/local_pose_data_source.dart';
+import 'package:posio/features/pose_library/data/data_sources/backend_pose_data_source.dart';
 import 'package:posio/features/pose_library/data/data_sources/user_pose_data_source.dart';
 import 'package:posio/features/pose_library/data/repositories/pose_repository_impl.dart';
 import 'package:posio/features/pose_library/domain/entities/pose.dart';
 import 'package:posio/features/pose_library/domain/repositories/pose_repository.dart';
+import 'package:posio/core/network/backend_api.dart';
 
 final localPoseDataSourceProvider = Provider<LocalPoseDataSource>((ref) {
   return const BundledPoseDataSource();
@@ -13,10 +15,15 @@ final userPoseDataSourceProvider = Provider<UserPoseDataSource>((ref) {
   return DeviceUserPoseDataSource();
 });
 
+final backendPoseDataSourceProvider = Provider<BackendPoseDataSource>((ref) {
+  return BackendPoseDataSource(backendApi);
+});
+
 final poseRepositoryProvider = Provider<PoseRepository>((ref) {
   return PoseRepositoryImpl(
     ref.watch(localPoseDataSourceProvider),
     ref.watch(userPoseDataSourceProvider),
+    ref.watch(backendPoseDataSourceProvider),
   );
 });
 
@@ -57,10 +64,7 @@ final class PoseCatalogController extends AsyncNotifier<List<Pose>> {
     final current = state.value ?? const <Pose>[];
     state = AsyncData([
       for (final item in current)
-        if (item.id == pose.id)
-          item.copyWith(isFavorite: isFavorite)
-        else
-          item,
+        if (item.id == pose.id) item.copyWith(isFavorite: isFavorite) else item,
     ]);
   }
 }

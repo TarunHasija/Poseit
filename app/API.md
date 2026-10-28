@@ -84,6 +84,44 @@ Success status: `201 Created`. The response is pose metadata:
 }
 ```
 
+### `POST /poses/bulk`
+
+Uploads multiple images in one `multipart/form-data` request. Repeat the
+`files` field once for each image. The metadata fields are applied to every
+uploaded image; each returned `id` is a unique image ID.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `files` | file, repeated | JPEG, PNG, WEBP, or GIF image; up to 20 images |
+| `people_count` | integer | Shared people count, zero or greater |
+| `category` | string | Shared category, 1–120 characters |
+| `male` | integer | Shared male count, zero or greater |
+| `female` | integer | Shared female count, zero or greater |
+| `created_at` | ISO 8601 datetime | Shared capture/creation time; timezone is recommended |
+
+Each image is limited to 15 MiB and the combined original upload size is
+limited to 100 MiB. The server validates and optimizes each image, stores all
+objects in the private bucket, and returns a list of pose metadata with status
+`201 Created`. If an image or database write fails, the request is rolled back
+and uploaded storage objects are removed where possible.
+
+Example:
+
+```bash
+curl -X POST "$API_BASE_URL/poses/bulk" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "files=@./front.jpg" \
+  -F "files=@./side.png" \
+  -F "people_count=3" \
+  -F "category=Family" \
+  -F "male=1" \
+  -F "female=2" \
+  -F "created_at=2026-10-25T10:30:00Z"
+```
+
+The response is an array. Each item includes its own unique `id` plus the
+shared metadata, image dimensions, and storage details.
+
 ### `GET /poses`
 
 Returns the full pose catalog, including each image as base64. Each item contains all the metadata above plus `image_base64`:
@@ -232,3 +270,23 @@ For an authenticated upload, call `login` first, then pass a local image path to
 ## Inspecting the API
 
 With the backend running, Swagger UI is available at `/docs` on the API base URL. It can be used to inspect schemas and manually try calls. Log in first, copy `access_token`, click **Authorize**, enter `Bearer <access_token>`, then try the pose routes.
+
+## Database migrations (Alembic)
+
+Alembic is configured at the repository root. The API no longer creates tables on startup, so apply migrations before starting against a new database.
+
+After changing a SQLAlchemy model, generate a revision from the repository root:
+
+```shell
+alembic revision --autogenerate -m "describe the schema change"
+```
+
+Review the generated Python file in `migrations/versions/`; autogeneration is a draft and should be checked before applying. Apply pending revisions with:
+
+```shell
+alembic upgrade head
+```
+
+For an existing database that already has the original `pose_images` table from the older SQL migration, baseline it before using Alembic. If it has only the original columns, run `alembic stamp 0001_pose_schema` and then `alembic upgrade head`. If the bulk metadata columns were already added by `20261025_add_bulk_pose_metadata.sql`, run `alembic stamp head` instead. `stamp` records the current revision without changing tables, so confirm the actual schema matches first.
+
+The older `.sql` files in `migrations/` are retained as historical records. Use Alembic revisions for future changes instead of manually rerunning those files.

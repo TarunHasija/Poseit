@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 abstract final class SupabaseConfig {
-  static const url = 'https://aggiedvngedbhzjrkkrw.supabase.co';
+  static const url = String.fromEnvironment('SUPABASE_URL');
   static const publishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',
   );
