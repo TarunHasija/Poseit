@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.supabase import supabase
-from app.repositories.db.pose_repo import PoseImage, create_pose, get_pose, list_poses
+from app.repositories.db.pose_repo import PoseImage, create_pose, get_pose, list_poses, update_pose
 
 ALLOWED_FORMATS = {
     "JPEG": ("image/jpeg", "jpg"),
@@ -103,6 +103,7 @@ async def upload_pose(db: AsyncSession, file: UploadFile) -> tuple[PoseImage, by
             original_size_bytes=len(raw),
             width=width,
             height=height,
+            categories=["Uncategorized"],
         )
         await db.commit()
     except Exception:
@@ -116,30 +117,23 @@ async def upload_poses_bulk(
     db: AsyncSession,
     files: list[UploadFile],
     *,
-    people_count: int,
-    category: str,
-    male: int,
-    female: int,
-    created_at: datetime,
+    metadata: list[dict],
 ) -> list[PoseImage]:
-    """Store images with one shared set of metadata and a unique UUID per image."""
+    """Store images with per-image metadata and a unique UUID per image."""
     from starlette.concurrency import run_in_threadpool
 
     if not files:
         raise HTTPException(status_code=400, detail="At least one image is required")
     if len(files) > MAX_BULK_IMAGE_COUNT:
         raise HTTPException(status_code=413, detail=f"Bulk upload is limited to {MAX_BULK_IMAGE_COUNT} images")
+    if len(files) != len(metadata):
+        raise HTTPException(status_code=422, detail="Metadata count must match the number of images")
 
-    normalized_created_at = (
-        created_at.replace(tzinfo=timezone.utc)
-        if created_at.tzinfo is None
-        else created_at
-    )
     uploaded_objects: list[tuple[str, str]] = []
     total_bytes = 0
     poses: list[PoseImage] = []
     try:
-        for file in files:
+        for file, image_metadata in zip(files, metadata):
             declared_mime = (file.content_type or "").split(";", 1)[0].strip().lower()
             if not declared_mime.startswith("image/"):
                 raise HTTPException(status_code=415, detail="Only image MIME types are allowed")
@@ -159,25 +153,29 @@ async def upload_poses_bulk(
             bucket = settings.SUPABASE_POSES_BUCKET
             uploaded_objects.append((bucket, object_path))
             await run_in_threadpool(_upload_object, object_path, optimized, mime_type)
-            poses.append(
-                await create_pose(
-                    db,
-                    id=pose_id,
-                    bucket_name=bucket,
-                    object_path=object_path,
-                    original_filename=Path(file.filename or "pose").name[:255],
-                    mime_type=mime_type,
-                    size_bytes=len(optimized),
-                    original_size_bytes=len(raw),
-                    width=width,
-                    height=height,
-                    people_count=people_count,
-                    category=category,
-                    male=male,
-                    female=female,
-                    created_at=normalized_created_at,
-                )
+            categories = image_metadata["categories"]
+            created_at = image_metadata["created_at"]
+            normalized_created_at = (
+                created_at.replace(tzinfo=timezone.utc)
+                if created_at.tzinfo is None
+                else created_at
             )
+            pose = await create_pose(
+                db,
+                id=pose_id,
+                bucket_name=bucket,
+                object_path=object_path,
+                original_filename=Path(file.filename or "pose").name[:255],
+                mime_type=mime_type,
+                size_bytes=len(optimized),
+                original_size_bytes=len(raw),
+                width=width,
+                height=height,
+                categories=categories,
+                people_count=image_metadata["people_count"],
+                created_at=normalized_created_at,
+            )
+            poses.append(pose)
 
         await db.commit()
         return poses
@@ -200,6 +198,37 @@ async def fetch_pose(db: AsyncSession, pose_id: UUID) -> tuple[PoseImage, bytes]
         return None
     stored = await run_in_threadpool(_download_object, pose.bucket_name, pose.object_path)
     return pose, _decode_for_response(stored, pose.mime_type)
+
+
+async def edit_pose_metadata(db: AsyncSession, pose_id: UUID, changes: dict) -> PoseImage | None:
+    """Partially update pose metadata while leaving the image object untouched."""
+    pose = await get_pose(db, pose_id)
+    if pose is None:
+        return None
+
+    if "category" in changes:
+        category = changes["category"].strip()
+        if not category:
+            raise HTTPException(status_code=422, detail="Category cannot be blank")
+        if "categories" in changes:
+            raise HTTPException(status_code=422, detail="Send either category or categories, not both")
+        changes.pop("category")
+        changes["categories"] = [category]
+    if "categories" in changes:
+        categories = [name.strip() for name in changes["categories"]]
+        if any(not name for name in categories):
+            raise HTTPException(status_code=422, detail="Category names cannot be blank")
+        if any(len(name) > 120 for name in categories):
+            raise HTTPException(status_code=422, detail="Category names cannot exceed 120 characters")
+        changes["categories"] = categories
+
+    try:
+        updated = await update_pose(db, pose, **changes)
+        await db.commit()
+        return updated
+    except Exception:
+        await db.rollback()
+        raise
 
 
 async def fetch_all_poses(db: AsyncSession) -> list[tuple[PoseImage, bytes]]:

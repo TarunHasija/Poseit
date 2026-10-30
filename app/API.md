@@ -87,17 +87,17 @@ Success status: `201 Created`. The response is pose metadata:
 ### `POST /poses/bulk`
 
 Uploads multiple images in one `multipart/form-data` request. Repeat the
-`files` field once for each image. The metadata fields are applied to every
-uploaded image; each returned `id` is a unique image ID.
+`files` field once for each image. Each returned `id` is a unique image ID.
+To apply the same metadata, including multiple categories, to every image, send
+one `metadata` text field containing a JSON object. Use `poses` for different
+metadata per image; its JSON array aligns by order with the repeated `files` rows.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `files` | file, repeated | JPEG, PNG, WEBP, or GIF image; up to 20 images |
-| `people_count` | integer | Shared people count, zero or greater |
-| `category` | string | Shared category, 1–120 characters |
-| `male` | integer | Shared male count, zero or greater |
-| `female` | integer | Shared female count, zero or greater |
-| `created_at` | ISO 8601 datetime | Shared capture/creation time; timezone is recommended |
+| `metadata` | JSON text | One metadata object shared by all files: `categories`, `people_count`, and `created_at` |
+| `poses` | JSON text | Per-image array with `categories`, `people_count`, and `created_at` |
+| `people_count`, `category`, `created_at` | form fields | Legacy shared mode with a single category. Use instead of `metadata` or `poses`. |
 
 Each image is limited to 15 MiB and the combined original upload size is
 limited to 100 MiB. The server validates and optimizes each image, stores all
@@ -108,19 +108,30 @@ and uploaded storage objects are removed where possible.
 Example:
 
 ```bash
+METADATA='{"categories":["standing","yoga"],"people_count":2,"created_at":"2026-10-25T10:30:00Z"}'
 curl -X POST "$API_BASE_URL/poses/bulk" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -F "files=@./front.jpg" \
   -F "files=@./side.png" \
-  -F "people_count=3" \
-  -F "category=Family" \
-  -F "male=1" \
-  -F "female=2" \
-  -F "created_at=2026-10-25T10:30:00Z"
+  -F "metadata=$METADATA"
 ```
 
-The response is an array. Each item includes its own unique `id` plus the
-shared metadata, image dimensions, and storage details.
+For different metadata per file:
+
+```bash
+POSES='[{"categories":["standing","yoga"],"people_count":2,"created_at":"2026-10-25T10:30:00Z"},{"categories":["stretching","solo"],"people_count":1,"created_at":"2026-10-25T10:35:00Z"}]'
+curl -X POST "$API_BASE_URL/poses/bulk" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "files=@./front.jpg" \
+  -F "files=@./side.png" \
+  -F "poses=$POSES"
+```
+
+The response is an array. Each item includes its own unique `id` plus its
+metadata, image dimensions, categories, and storage details. The `poses` array
+length must match the number of files. `metadata`, `poses`, and legacy fields
+are mutually exclusive. Apply Alembic migrations through `0005_remove_gender_counts`
+before using this code.
 
 ### `GET /poses`
 
@@ -149,6 +160,29 @@ This endpoint downloads all objects and returns them in one response, so respons
 ### `GET /poses/{pose_id}`
 
 Returns the image bytes directly with its image MIME type (for example, `image/jpeg`). The response includes metadata in headers such as `X-Pose-Id`, `X-Pose-Width`, `X-Pose-Height`, `X-Pose-Size`, and `X-Pose-Created-At`. A missing UUID returns `404`.
+
+### `PATCH /poses/{pose_id}`
+
+Edits pose metadata without uploading or replacing its image. Send any subset of
+`people_count`, `category` or `categories`, and `created_at` as JSON. Counts
+must be zero or greater; category must contain 1–120 non-whitespace characters.
+The endpoint returns the updated pose metadata. A missing pose returns `404`.
+
+Example request body:
+
+```json
+{
+  "categories": ["standing", "yoga"],
+  "people_count": 2
+}
+```
+
+Omitted fields remain unchanged. Supplying `categories` replaces the pose's
+category set; an empty list clears it. Each category name is trimmed and stored
+in lowercase. Supplying the legacy singular `category` replaces the set with
+that one category. The category table stores each name once, and the composite
+primary key on `(pose_id, category_id)` prevents duplicate links. Apply the
+Alembic migrations through `0005_remove_gender_counts` before deploying this API change.
 
 ## Common errors
 
